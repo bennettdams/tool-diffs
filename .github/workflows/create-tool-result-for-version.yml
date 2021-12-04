@@ -1,0 +1,82 @@
+name: Create tool result for version
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-version:
+        description: 'Release version to create tool result for'
+        default: 'v12.0.0'
+        required: true
+
+env:
+  # folder where the tool result is saved
+  TOOL_RESULTS_FOLDER: ./tool-results/nextjs
+  RELEASE_VERSION: ${{ github.event.inputs.release-version }}
+  
+jobs:  
+  check-release:
+    outputs:
+      is-creating-for-release-needed: ${{ steps.evaluate-folder.outputs.folder-does-not-exist }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Evaluate lines
+      id: evaluate-lines
+      working-directory: ${{ env.TOOL_RESULTS_FOLDER }}
+      run: echo ::set-output name=lines::$(ls -l | grep ${{ env.RELEASE_VERSION }} | wc -l)
+  
+    - name: Evaluate if folder for version already exists
+      id: evaluate-folder
+      run: |
+        if [[ ${{ steps.evaluate-lines.outputs.lines }} == 0 ]];
+        then
+          echo Folder does not exist.
+          echo "::set-output name=folder-does-not-exist::yes"
+        else
+          echo Folder exists.
+          echo "::set-output name=folder-does-not-exist::no"
+        fi
+
+  create-app:
+    needs: check-release
+    if: needs.check-release.outputs.is-creating-for-release-needed == 'yes'
+    env:
+      NODE_VERSION: 14
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Node.js ${{ env.NODE_VERSION }}
+      uses: actions/setup-node@v2
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Create app for release
+      run: npx create-next-app@${{ env.RELEASE_VERSION }} --ts --use-npm ${{ env.RELEASE_VERSION }}
+      working-directory: ${{ env.TOOL_RESULTS_FOLDER }}
+
+    - name: Push new create-next-app to repo
+      run:  |
+        git config --global user.name 'Bennett Dams' 
+        git config --global user.email 'bennettdams@users.noreply.github.com'
+        git add -A
+        git commit -m '[automated commit] Test'
+        git push
+
+    - name: Check folders for existence
+      run: ls -l
+      
+    - name: See diff results folder
+      run: ls -l ${{ env.TOOL_RESULTS_FOLDER }}
+    
+    
+    
+    
+    
+    
+    
+    
+    
